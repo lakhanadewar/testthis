@@ -1,0 +1,140 @@
+name: Naukri Profile Automation (Random Intervals)
+
+on:
+  # Trigger on push to main branch
+  push:
+    branches: [ main ]
+  
+  # Trigger on pull request to main branch
+  pull_request:
+    branches: [ main ]
+  
+  # Allow manual trigger
+  workflow_dispatch:
+  
+  # Schedule to run every 30 minutes to check if we should execute
+  schedule:
+    - cron: '*/30 * * * *'
+
+jobs:
+  check-and-run:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Restore last run cache
+      id: cache-restore
+      uses: actions/cache/restore@v4
+      with:
+        path: last-run.txt
+        key: naukri-last-run-${{ github.run_id }}
+        restore-keys: |
+          naukri-last-run-
+
+    - name: Check if we should run (Random 15-45 min intervals)
+      id: should-run
+      run: |
+        # Create last-run.txt if it doesn't exist
+        if [ ! -f "last-run.txt" ]; then
+          echo "0" > last-run.txt
+          echo "First run - creating timestamp file"
+        fi
+        
+        # Get current timestamp and last run timestamp
+        CURRENT_TIME=$(date +%s)
+        LAST_RUN=$(cat last-run.txt || echo "0")
+        
+        # Calculate time difference in minutes
+        TIME_DIFF=$(( (CURRENT_TIME - LAST_RUN) / 60 ))
+        
+        echo "Current time: $(date)"
+        echo "Last run: $(date -d @$LAST_RUN 2>/dev/null || echo 'Never')"
+        echo "Minutes since last run: $TIME_DIFF"
+        
+        # Generate random interval between 15-45 minutes for this check
+        RANDOM_INTERVAL=$(shuf -i 15-45 -n 1)
+        echo "Required interval for this run: $RANDOM_INTERVAL minutes"
+        
+        # Decide if we should run
+        if [ $TIME_DIFF -ge $RANDOM_INTERVAL ] || [ "$LAST_RUN" = "0" ]; then
+          echo "✅ Time to run automation!"
+          echo "should_run=true" >> $GITHUB_OUTPUT
+          
+          # Update timestamp
+          echo $CURRENT_TIME > last-run.txt
+          echo "Updated last run timestamp"
+        else
+          echo "⏭️ Not time yet. Need to wait $(($RANDOM_INTERVAL - $TIME_DIFF)) more minutes."
+          echo "should_run=false" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Save last run cache
+      if: steps.should-run.outputs.should_run == 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: last-run.txt
+        key: naukri-last-run-${{ github.run_id }}
+
+    - name: Setup Node.js
+      if: steps.should-run.outputs.should_run == 'true'
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+
+    - name: Install dependencies
+      if: steps.should-run.outputs.should_run == 'true'
+      run: |
+        npm init -y
+        npm install playwright
+
+    - name: Install Playwright browsers
+      if: steps.should-run.outputs.should_run == 'true'
+      run: npx playwright install --with-deps chromium
+
+    - name: Add random startup delay
+      if: steps.should-run.outputs.should_run == 'true'
+      run: |
+        # Add 0-5 minute random delay to further randomize execution time
+        DELAY_SECONDS=$(shuf -i 0-300 -n 1)
+        echo "Adding random startup delay of $DELAY_SECONDS seconds..."
+        sleep $DELAY_SECONDS
+
+    - name: Run Naukri automation
+      if: steps.should-run.outputs.should_run == 'true'
+      env:
+        NAUKRI_EMAIL: ${{ secrets.apurvanalgundwar@gmail.com }}
+        NAUKRI_PASSWORD: ${{ secrets.dwfU55$u_Z!_XSP }}
+      run: |
+        echo "🚀 Starting Naukri automation at $(date)"
+        node test.js
+
+    - name: Upload screenshots on failure
+      if: failure() && steps.should-run.outputs.should_run == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: error-screenshots-${{ github.run_number }}
+        path: |
+          error-screenshot*.png
+          success-screenshot.png
+        retention-days: 30
+
+    - name: Upload logs and timing info
+      if: always() && steps.should-run.outputs.should_run == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: automation-logs-${{ github.run_number }}
+        path: |
+          *.log
+          last-run.txt
+        retention-days: 7
+
+    - name: Cleanup old caches (weekly)
+      if: steps.should-run.outputs.should_run == 'true'
+      run: |
+        # This step helps prevent cache buildup
+        # GitHub automatically cleans old caches, but this helps document the process
+        echo "Cache cleanup handled automatically by GitHub Actions"
+        echo "Current run: ${{ github.run_number }}"
