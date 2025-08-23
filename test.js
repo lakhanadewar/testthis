@@ -47,25 +47,14 @@ async function automateNaukriProfile() {
         await page.locator('//button[@class="btn-primary loginButton"]').click();
         
         // Wait for login to complete
-        await page.waitForLoadState('networkidle');
         await page.waitForTimeout(3000);
 
-        console.log('Login successful, looking for Complete Profile...');
-        
-        // Navigate to profile page
-        try {
-            await page.click('text=Complete Profile', { timeout: 5000 });
-        } catch (error) {
-            try {
-                await page.click('a[href*="profile"]', { timeout: 5000 });
-            } catch (error2) {
-                console.log('Could not find profile link, navigating directly...');
-                await page.goto('https://www.naukri.com/mnjuser/profile', {
-                    waitUntil: 'networkidle',
-                    timeout: 30000
-                });
-            }
-        }
+        console.log('Login successful, navigating to profile page...');
+        // Navigate directly to profile page
+        await page.goto('https://www.naukri.com/mnjuser/profile', { 
+            waitUntil: 'networkidle',
+            timeout: 30000 
+        });
         
         await page.waitForTimeout(2000);
 
@@ -88,25 +77,28 @@ async function automateNaukriProfile() {
         await page.fill(textareaSelector, randomText);
 
         console.log('Saving changes...');
-        // Click Save button
-        await page.click('button:has-text("Save"), input[value="Save"]');
+        // Click Save button with improved selector
+        await page.locator('//form[@name="resumeHeadlineForm"]//button[@class="btn-dark-ot"]').click();
         
         // Wait for save to complete
         await page.waitForTimeout(3000);
 
-        console.log('Editing again to remove text...');
+        console.log('Editing again to update with final text...');
         // Click edit icon again
         await page.click(editIconSelector);
         
         // Wait for textarea
         await page.waitForSelector(textareaSelector, { timeout: 10000 });
         
-        // Clear the text
+        // Set the final text
+        const finalText = 'Experienced Technology Professional - Detail-driven Technology Analyst with 5+ years of focus on End-to-End Testing, Manual QA, and Test Campaign coordination. Expertise in PDM/TDM tools, SQL, and KPI reporting to ensure robust and reliable software delivery.';
         await page.fill(textareaSelector, '');
+        await page.waitForTimeout(1000);
+        await page.fill(textareaSelector, finalText);
         
-        console.log('Saving empty headline...');
+        console.log('Saving final headline...');
         // Save again
-        await page.click('button:has-text("Save"), input[value="Save"]');
+        await page.locator('//form[@name="resumeHeadlineForm"]//button[@class="btn-dark-ot"]').click();
         
         // Wait for save to complete
         await page.waitForTimeout(3000);
